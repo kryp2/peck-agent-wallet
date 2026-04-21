@@ -253,6 +253,95 @@ export class BitcoinAgentWallet {
     })
   }
 
+  // --- BRC-52 certificate operations ---
+
+  /**
+   * Store a BRC-52 certificate an issuer has handed us. The certificate is
+   * already signed by the certifier and contains the subject keyring — we just
+   * persist it in wallet-toolbox's certificate store so we can later prove
+   * it to verifiers via proveCertificate.
+   *
+   * Typical flow: identity.peck.to POSTs a signed cert to our client; we
+   * forward it here. Only our own identityKey should ever appear as `subject`.
+   *
+   * @see https://brc.dev/52  — BRC-52 certificate spec
+   */
+  async acquireCertificate(args: {
+    type: string                                // base64 — cert type, e.g. sha256('peck.to/identity/v1')
+    certifier: string                            // 66-hex pubkey of the issuer
+    serialNumber: string                         // base64 — from the issuer's response
+    revocationOutpoint: string                   // 'txid.vout' — issuer-controlled UTXO
+    signature: string                            // hex — certifier's signature
+    fields: Record<string, string>               // encrypted field values from issuer
+    keyringForSubject: Record<string, string>    // encrypted field-keys the subject (us) needs to decrypt
+  }): Promise<{ certificate: any }> {
+    this.ensureInit()
+    const result = await this.setup!.wallet.acquireCertificate({
+      type: args.type,
+      certifier: args.certifier,
+      acquisitionProtocol: 'direct',
+      fields: args.fields,
+      serialNumber: args.serialNumber,
+      revocationOutpoint: args.revocationOutpoint,
+      signature: args.signature,
+      keyringForSubject: args.keyringForSubject,
+    })
+    return { certificate: result }
+  }
+
+  /**
+   * List certificates held in this wallet. Filter by certifier / type to
+   * narrow results. Useful for UIs that want to show "what does identity.peck.to
+   * say about this agent?".
+   */
+  async listCertificates(args?: {
+    certifiers?: string[]
+    types?: string[]
+    limit?: number
+    offset?: number
+  }): Promise<any> {
+    this.ensureInit()
+    return this.setup!.wallet.listCertificates({
+      certifiers: args?.certifiers || [],
+      types: args?.types || [],
+      limit: args?.limit ?? 25,
+      offset: args?.offset ?? 0,
+    })
+  }
+
+  /**
+   * Prove a specific certificate to a verifier — produces a revealed keyring
+   * scoped to that verifier for the selected fields only. Fields not named in
+   * `fieldsToReveal` stay encrypted, so the verifier sees only what we let them.
+   *
+   * Use when another app / agent asks us to prove we have e.g. a
+   * `peck.to/identity/v1` cert with `handle=<x>`.
+   */
+  async proveCertificate(args: {
+    certifier: string
+    type: string
+    fieldsToReveal: string[]
+    verifier: string          // 66-hex pubkey of the peer checking the cert
+  }): Promise<any> {
+    this.ensureInit()
+    // Look up the actual certificate first — proveCertificate needs the full
+    // WalletCertificate (or a recognizable partial) to locate it in wallet-toolbox's
+    // store, not just certifier+type as the args suggest.
+    const list = await this.setup!.wallet.listCertificates({
+      certifiers: [args.certifier],
+      types: [args.type],
+      limit: 1,
+      offset: 0,
+    })
+    const cert = list.certificates?.[0]
+    if (!cert) throw new Error(`no certificate found with certifier=${args.certifier.slice(0, 16)}… type=${args.type.slice(0, 16)}…`)
+    return this.setup!.wallet.proveCertificate({
+      certificate: cert,
+      fieldsToReveal: args.fieldsToReveal,
+      verifier: args.verifier,
+    })
+  }
+
   // --- High-level content ops ---
 
   async post(args: { content: string; tags?: string[]; channel?: string; parentTxid?: string }): Promise<BroadcastResult> {
