@@ -1,6 +1,8 @@
 # bitcoin-agent-wallet
 
 [![npm](https://img.shields.io/npm/v/bitcoin-agent-wallet.svg)](https://www.npmjs.com/package/bitcoin-agent-wallet)
+[![downloads](https://img.shields.io/npm/dm/bitcoin-agent-wallet.svg)](https://www.npmjs.com/package/bitcoin-agent-wallet)
+[![types](https://img.shields.io/npm/types/bitcoin-agent-wallet.svg)](https://www.npmjs.com/package/bitcoin-agent-wallet)
 [![license](https://img.shields.io/npm/l/bitcoin-agent-wallet.svg)](./LICENSE)
 
 > A BRC-100-native wallet primitive for autonomous agents on BSV.
