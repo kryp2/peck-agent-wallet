@@ -148,6 +148,31 @@ export class BitcoinAgentWallet {
   }
 
   /**
+   * Push a BRC-29 payment to a recipient over PeerPay's WebSocket channel.
+   * Recipient's listenForLivePayments callback fires within ~100ms and auto-
+   * internalizes. Use this for agent-initiated payments: refunds, tips,
+   * agent-to-agent settlements.
+   *
+   * Uses wallet-toolbox's createAction internally (so it deducts from our
+   * spendable balance) and wraps the signed BEEF in a PeerPay PaymentToken
+   * with derivation metadata before pushing to the recipient's payment_inbox.
+   *
+   * Throws if wallet has insufficient funds for amount + network fee.
+   */
+  async sendLivePayment(args: {
+    recipientIdentityKey: string
+    sats: number
+  }): Promise<void> {
+    this.ensureInit()
+    if (!this.peerPay) throw new Error('PeerPay not initialized')
+    if (args.sats < 1) throw new Error('sats must be >= 1')
+    await this.peerPay.sendLivePayment({
+      recipient: args.recipientIdentityKey,
+      amount: args.sats,
+    })
+  }
+
+  /**
    * Poll agentens payment_inbox for innkommende BRC-29-payments via PeerPay.
    * Hver melding er en PaymentToken med BEEF + derivation info — PeerPay's
    * acceptPayment håndterer internalizeAction automatisk.
