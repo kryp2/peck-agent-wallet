@@ -6,20 +6,18 @@
  *
  * 1. Scripten initialiserer wallet, printer agentens identity key
  * 2. Den venter til en BRC-29-payment dukker opp i inbox
- * 3. Du åpner peck-desktop, Send → Recipient = printed identity key → Amount (feks 5000 sat) → Send
+ * 3. Du åpner din BRC-100-wallet, Send → Recipient = printed identity key → Amount (feks 5000 sat) → Send
  * 4. Agenten plukker opp, internaliserer, poster til peck.to
  */
-import { readFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
-import { PeckAgentWallet } from '../src/index.js'
+import { PeckAgentWallet, getOrMigrateIdentityKey } from '../src/index.js'
 
 async function main() {
-  const identityPath = join(homedir(), '.peck', 'identity.json')
-  const identity = JSON.parse(readFileSync(identityPath, 'utf-8'))
+  const privateKeyHex = await getOrMigrateIdentityKey()
 
   const wallet = new PeckAgentWallet({
-    privateKeyHex: identity.privateKeyHex,
+    privateKeyHex,
     network: 'main',
     appName: 'peck-agent-wallet-smoke',
     storage: {
@@ -34,9 +32,9 @@ async function main() {
   console.log(`   ${wallet.getIdentityKey()}`)
   console.log(`📬 Agent address: ${wallet.getAddress()}`)
 
-  // Poll for payments. I peck-desktop: Send → paste identity key → f.eks. 5000 sat → Send.
+  // Poll for payments. I wallet-app: Send → paste identity key → f.eks. 5000 sat → Send.
   console.log(`\n⏳ Waiting for BRC-29 payment via msg.peck.to...`)
-  console.log(`   (open peck-desktop and send ~5000 sat to the identity key above)`)
+  console.log(`   (open your BRC-100 wallet and send ~5000 sat to the identity key above)`)
   let attempts = 0
   while (attempts < 60) {
     const processed = await wallet.processIncomingPayments()
