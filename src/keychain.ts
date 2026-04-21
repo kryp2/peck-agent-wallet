@@ -110,7 +110,7 @@ export async function migrateFromPeckIdentityJson(
 
 /**
  * One-stop helper: try keychain first, fall back to legacy JSON + auto-migrate.
- * Returns the hex private key to pass into PeckAgentWallet config.
+ * Returns the hex private key to pass into BitcoinAgentWallet config.
  *
  * Throws if neither keychain nor legacy JSON has anything — caller should
  * then generate a fresh key via `storeIdentityKey(PrivateKey.fromRandom().toHex())`.
@@ -161,7 +161,7 @@ secret-tool lookup service peck-agent account default   # Linux
 security find-generic-password -s peck-agent -a default # macOS
 \`\`\`
 
-Managed by \`peck-agent-wallet/src/keychain.ts\`.
+Managed by \`bitcoin-agent-wallet/src/keychain.ts\`.
 `
   writeFileSync(breadcrumbPath, content, 'utf-8')
 }

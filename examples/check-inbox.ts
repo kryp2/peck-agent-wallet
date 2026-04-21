@@ -4,11 +4,11 @@
  */
 import { homedir } from 'os'
 import { join } from 'path'
-import { PeckAgentWallet, getOrMigrateIdentityKey } from '../src/index.js'
+import { BitcoinAgentWallet, getOrMigrateIdentityKey } from '../src/index.js'
 
 async function main() {
   const privateKeyHex = await getOrMigrateIdentityKey()
-  const wallet = new PeckAgentWallet({
+  const wallet = new BitcoinAgentWallet({
     privateKeyHex,
     network: 'main',
     appName: 'peck-agent-wallet-smoke',

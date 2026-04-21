@@ -1,6 +1,6 @@
 export type Network = 'main' | 'test'
 
-export interface PeckAgentWalletConfig {
+export interface BitcoinAgentWalletConfig {
   /** Agent's private key (hex, 32 bytes). Samme format som ~/.peck/identity.json. */
   privateKeyHex: string
   /** 'main' (default) eller 'test'. */

@@ -1,6 +1,6 @@
-export { PeckAgentWallet } from './PeckAgentWallet.js'
+export { BitcoinAgentWallet } from './BitcoinAgentWallet.js'
 export type {
-  PeckAgentWalletConfig,
+  BitcoinAgentWalletConfig,
   StorageConfig,
   ServicesConfig,
   BroadcastResult,

@@ -1,5 +1,5 @@
 /**
- * PeckAgentWallet — BRC-100 native wallet for autonomous agents.
+ * BitcoinAgentWallet — BRC-100 native wallet for autonomous agents.
  *
  * Wraps @bsv/wallet-toolbox. Agenten eier nøkkelen, wallet-toolbox håndterer
  * UTXO-state, ancestor-BEEF, signing via wallet.createAction(). Ingen P2PKH-
@@ -24,7 +24,7 @@ import {
   buildPost, buildLike, buildRepost, buildFollow,
 } from './bitcoinSchema.js'
 import type {
-  PeckAgentWalletConfig,
+  BitcoinAgentWalletConfig,
   BroadcastResult,
   Network,
 } from './types.js'
@@ -32,8 +32,8 @@ import type {
 const DEFAULT_BROADCAST_STREAM = 'broadcast-queue'
 const DEFAULT_MESSAGEBOX_URL = process.env.MESSAGEBOX_URL || 'https://msg.peck.to'
 
-export class PeckAgentWallet {
-  private config: PeckAgentWalletConfig
+export class BitcoinAgentWallet {
+  private config: BitcoinAgentWalletConfig
   private setup?: SetupWallet
   private signingKey: PrivateKey
   private address: string
@@ -44,7 +44,7 @@ export class PeckAgentWallet {
   private messageBox?: MessageBoxClient
   private peerPay?: PeerPayClient
 
-  constructor(config: PeckAgentWalletConfig) {
+  constructor(config: BitcoinAgentWalletConfig) {
     this.config = config
     this.network = config.network || 'main'
     this.appName = config.appName || 'peck.agents'
@@ -55,7 +55,7 @@ export class PeckAgentWallet {
 
   async init(): Promise<void> {
     if (this.setup) return
-    const storage = this.config.storage || { kind: 'sqlite', filePath: '.peck-agent-wallet.db' }
+    const storage = this.config.storage || { kind: 'sqlite', filePath: '.bitcoin-agent-wallet.db' }
     if (storage.kind !== 'sqlite') {
       throw new Error(`Storage kind ${storage.kind} not yet implemented — use 'sqlite'`)
     }
@@ -163,7 +163,7 @@ export class PeckAgentWallet {
         await this.peerPay.acceptPayment(p)
         processed++
       } catch (e) {
-        console.warn(`[peck-agent-wallet] failed to accept payment ${p.messageId}:`, (e as Error).message)
+        console.warn(`[bitcoin-agent-wallet] failed to accept payment ${p.messageId}:`, (e as Error).message)
       }
     }
     return processed
@@ -180,9 +180,9 @@ export class PeckAgentWallet {
     const handler = onPayment || (async (p) => {
       try {
         await this.peerPay!.acceptPayment(p)
-        console.log(`[peck-agent-wallet] accepted payment ${p.messageId} (${p.token?.amount} sat)`)
+        console.log(`[bitcoin-agent-wallet] accepted payment ${p.messageId} (${p.token?.amount} sat)`)
       } catch (e) {
-        console.warn(`[peck-agent-wallet] failed to auto-accept ${p.messageId}:`, (e as Error).message)
+        console.warn(`[bitcoin-agent-wallet] failed to auto-accept ${p.messageId}:`, (e as Error).message)
       }
     })
     await this.peerPay.listenForLivePayments({ onPayment: handler })
@@ -291,7 +291,7 @@ export class PeckAgentWallet {
    * bare outputs og en description.
    *
    * Typisk bruk: appen bygger et Bitcoin Schema MAP+B+AIP script (eller
-   * noe annet lockingScript) og lar peck-agent-wallet håndtere resten:
+   * noe annet lockingScript) og lar bitcoin-agent-wallet håndtere resten:
    *
    * ```ts
    * const script = buildMessageScript({channel, content, ...})
@@ -302,7 +302,7 @@ export class PeckAgentWallet {
    * ```
    *
    * Denne primitiven gjør at høy-nivå apper (peck-mcp, scripts, daemons)
-   * kan bruke peck-agent-wallet som eneste wallet-backend uten å bygge
+   * kan bruke bitcoin-agent-wallet as the only wallet backend uten å bygge
    * eget UTXO-management eller egen broadcast-path.
    */
   async broadcast(args: {
@@ -350,7 +350,7 @@ export class PeckAgentWallet {
   }
 
   private ensureInit(): void {
-    if (!this.setup) throw new Error('PeckAgentWallet not initialized — call await wallet.init() first')
+    if (!this.setup) throw new Error('BitcoinAgentWallet not initialized — call await wallet.init() first')
   }
 
   async close(): Promise<void> {

@@ -31,7 +31,7 @@ function signAip(s: Script, content: string, key: PrivateKey, network: Network):
   const hash = Array.from(createHash('sha256').update(content).digest())
   // BSM.sign returnerer base64-string by default. AIP-protokollen pusher
   // signaturen som base64-string (ikke raw bytes) — matcher alle eksisterende
-  // peck.to TX-er.
+  // Bitcoin Schema TX-es.
   const sig = BSM.sign(hash, key, 'base64') as string
   s.writeBin([PIPE])
   pushData(s, PROTO_AIP)

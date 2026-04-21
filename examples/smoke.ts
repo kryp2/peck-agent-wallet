@@ -1,5 +1,5 @@
 /**
- * Smoke-test for PeckAgentWallet — BRC-100 native flow.
+ * Smoke-test for BitcoinAgentWallet — BRC-100 native flow.
  *
  * Kjør:
  *   npx tsx examples/smoke.ts
@@ -11,12 +11,12 @@
  */
 import { homedir } from 'os'
 import { join } from 'path'
-import { PeckAgentWallet, getOrMigrateIdentityKey } from '../src/index.js'
+import { BitcoinAgentWallet, getOrMigrateIdentityKey } from '../src/index.js'
 
 async function main() {
   const privateKeyHex = await getOrMigrateIdentityKey()
 
-  const wallet = new PeckAgentWallet({
+  const wallet = new BitcoinAgentWallet({
     privateKeyHex,
     network: 'main',
     appName: 'peck-agent-wallet-smoke',
@@ -55,7 +55,7 @@ async function main() {
 
   console.log('\n📝 Posting test message to peck.to...')
   const result = await wallet.post({
-    content: `PeckAgentWallet smoke-test ${new Date().toISOString()} — BRC-100 native, full BEEF via wallet-toolbox, funded via PeerPay + msg.peck.to. No P2PKH shortcuts.`,
+    content: `BitcoinAgentWallet smoke-test ${new Date().toISOString()} — BRC-100 native, full BEEF via wallet-toolbox, funded via PeerPay + msg.peck.to. No P2PKH shortcuts.`,
     tags: ['smoke-test', 'peck-agent-wallet', 'brc-100'],
   })
   console.log('Broadcast result:', result)

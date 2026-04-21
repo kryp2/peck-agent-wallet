@@ -1,26 +1,28 @@
-# peck-agent-wallet
+# bitcoin-agent-wallet
 
-BRC-100 native wallet for autonomous agents on **[peck.to](https://peck.to)**.
+[![npm](https://img.shields.io/npm/v/bitcoin-agent-wallet.svg)](https://www.npmjs.com/package/bitcoin-agent-wallet)
+[![license](https://img.shields.io/npm/l/bitcoin-agent-wallet.svg)](./LICENSE)
 
-Wraps [`@bsv/wallet-toolbox`](https://www.npmjs.com/package/@bsv/wallet-toolbox) with OS-native keychain identity storage, standard PeerPay funding via [`@bsv/message-box-client`](https://www.npmjs.com/package/@bsv/message-box-client), and high-level Bitcoin Schema helpers.
+> A BRC-100-native wallet primitive for autonomous agents on BSV.
+
+Wraps [`@bsv/wallet-toolbox`](https://www.npmjs.com/package/@bsv/wallet-toolbox) with OS-native keychain identity storage, standard PeerPay funding via [`@bsv/message-box-client`](https://www.npmjs.com/package/@bsv/message-box-client), and a flexible `broadcast()` primitive for arbitrary locking scripts.
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│ peck-agent-wallet                                    │
+│ bitcoin-agent-wallet                                 │
 ├──────────────────────────────────────────────────────┤
-│  wallet.post({content, tags})          ← your code   │
+│  wallet.broadcast({ description, outputs })          │
 │        │                                             │
-│        ├─ Bitcoin Schema MAP+B+AIP-script            │
-│        ├─ wallet-toolbox.createAction                │
-│        │    - UTXO selection + BEEF assembly         │
+│        ├─ @bsv/wallet-toolbox.createAction           │
+│        │    - UTXO selection + ancestor BEEF         │
 │        │    - signing via keychain-resident key      │
-│        │    - ARC broadcast                          │
-│        └─ indexed on peck.to within 2–3s             │
+│        │    - ARC broadcast (or Redis queue)         │
+│        └─ returns { txid, status }                   │
 │                                                      │
-│  wallet.requestPayment(user, amount)                 │
+│  wallet.requestPayment({ recipient, sats, desc })    │
 │        │                                             │
 │        └─ PeerPay payment_requests box               │
-│            → user's BRC-100 wallet (BSV Desktop, …)  │
+│            → recipient BRC-100 wallet                │
 │            → approve → BRC-29 BEEF back              │
 │            → internalizeAction (automatic)           │
 └──────────────────────────────────────────────────────┘
@@ -28,68 +30,74 @@ Wraps [`@bsv/wallet-toolbox`](https://www.npmjs.com/package/@bsv/wallet-toolbox)
 
 ## Why
 
-The agent owns the key. UTXO/BEEF/signing happens locally via `@bsv/wallet-toolbox`. No server-side signing, no manual UTXO tracking, no plaintext keys on disk. Standard BRC-100 / PeerPay protocols only — compatible out-of-the-box with any wallet that implements them (BSV Desktop, Babbage, bsv-browser).
+The agent owns the key. UTXO selection, BEEF assembly, signing, and broadcast all happen locally via `@bsv/wallet-toolbox`. No server-side signing, no manual UTXO tracking, no plaintext keys on disk. Standard BRC-100 / PeerPay protocols only — compatible out-of-the-box with any wallet that implements them (BSV Desktop, Babbage Desktop, bsv-browser).
 
 ## Install
 
 ```bash
-npm install peck-agent-wallet
+npm install bitcoin-agent-wallet
 ```
 
-Requires Node.js 20+. Native keychain binding via [keytar](https://www.npmjs.com/package/keytar) — on Linux you need `libsecret-1-0` + a running user keyring (GNOME Keyring or equivalent).
+Requires Node.js 20+. Native keychain binding via [keytar](https://www.npmjs.com/package/keytar):
+- **Linux:** `libsecret-1-0` + a running user keyring (GNOME Keyring or equivalent)
+- **macOS:** Keychain (built-in)
+- **Windows:** Credential Manager (built-in)
 
 ## Use
 
 ```typescript
-import { PeckAgentWallet, getOrMigrateIdentityKey } from 'peck-agent-wallet'
+import { BitcoinAgentWallet, getOrMigrateIdentityKey } from 'bitcoin-agent-wallet'
 
-// Reads hex identity key from OS keychain (libsecret / Keychain / Credential Manager).
-// Auto-migrates from legacy ~/.peck/identity.json on first run.
+// Reads hex identity key from OS keychain.
+// Auto-migrates from legacy ~/.peck/identity.json on first run, if present.
 const privateKeyHex = await getOrMigrateIdentityKey()
 
-const wallet = new PeckAgentWallet({
+const wallet = new BitcoinAgentWallet({
   privateKeyHex,
   network: 'main',
   appName: 'my-agent',
   storage: { kind: 'sqlite', filePath: '.my-agent-wallet.db' },
 })
 await wallet.init()
+```
 
-// Post to Bitcoin Schema — returns a txid within seconds
+### High-level helpers (Bitcoin Schema)
+
+Convenience wrappers around a shared MAP+B+AIP on-chain format used by the BSV social-graph ecosystem ([bitcoinschema.org](https://bitcoinschema.org)):
+
+```typescript
 const post = await wallet.post({
   content: 'hello from my agent',
   tags: ['demo'],
 })
 
-// Reply, like, follow
 await wallet.reply({ parentTxid: post.txid, content: 'self-reply' })
 await wallet.like(someTxid)
 await wallet.follow(someAddress)
+await wallet.repost({ targetTxid: someTxid })
 ```
 
 ### Low-level: `wallet.broadcast()`
 
-For custom Bitcoin Schema scripts or any other `lockingScript` the high-level helpers don't cover (messages, tags, friend/unfriend, function_register/call, paymail-lookup-based payments, …), build the script yourself and call `broadcast()`:
+For any custom locking script — payments, custom Bitcoin Schema types, OP_RETURN protocols, scripts pinned by third-party applications — build the script yourself and call `broadcast()`:
 
 ```typescript
-import { PROTO_B, PROTO_MAP, PROTO_AIP } from 'peck-agent-wallet'
-import { Script } from '@bsv/sdk'
+import { Script, P2PKH } from '@bsv/sdk'
 
-const script = buildMyScript(...)  // your Bitcoin Schema MAP+B+AIP builder
+const schemaScript = buildMySchemaScript(/* ... */)
 
 const result = await wallet.broadcast({
-  description: 'peck message',
+  description: 'custom protocol post + tip',
   outputs: [
-    { lockingScript: script, satoshis: 0 },
-    // optional: payment output, additional data outputs, etc.
-    { lockingScript: p2pkhScript, satoshis: 1000, outputDescription: 'tip' },
+    { lockingScript: schemaScript, satoshis: 0 },
+    { lockingScript: new P2PKH().lock(recipientAddress).toHex(), satoshis: 1000 },
   ],
-  labels: ['peck', 'message'],
+  labels: ['my-protocol', 'tip'],
 })
 // → { txid, status, detail }
 ```
 
-The wallet handles UTXO selection, ancestor BEEF assembly, signing, and broadcasting (ARC direct, or Redis → peck-broadcaster → overlay if `services.redisHost` is set). This is the primitive consumers like `peck-mcp` use to implement their full 16-write-tool surface without ever touching raw UTXOs.
+The wallet handles UTXO selection, ancestor BEEF assembly, signing, and broadcasting. This is the primitive consumers like [`peck-mcp`](https://github.com/kryp2/peck-mcp) use to implement full multi-tool agent surfaces without ever touching raw UTXOs.
 
 ## Identity storage (keychain)
 
@@ -101,10 +109,10 @@ The agent's hex private key lives in the OS secret store via [keytar](https://ww
 | macOS | Keychain |
 | Windows | Credential Manager |
 
-Default location: `service='peck-agent' account='default'`. Multiple agent identities on the same machine use different `account` values:
+Default location: `service='peck-agent' account='default'` (the service name is kept for backwards compatibility with earlier `peck-agent-wallet` installs; override via the `KeychainLocation` arg). Multiple agent identities on the same machine use different `account` values:
 
 ```typescript
-import { storeIdentityKey, loadIdentityKey, listIdentityAccounts } from 'peck-agent-wallet'
+import { storeIdentityKey, loadIdentityKey, listIdentityAccounts } from 'bitcoin-agent-wallet'
 import { PrivateKey } from '@bsv/sdk'
 
 // Generate + store a fresh identity
@@ -125,15 +133,15 @@ secret-tool lookup service peck-agent account default
 security find-generic-password -s peck-agent -a default
 ```
 
-### Migrating from `~/.peck/identity.json`
+### Migrating from legacy plaintext file
 
-If you have a legacy plaintext identity file from an earlier version of this library or an auto-generated Claude Code identity, move it into the keychain with:
+If you have a legacy `~/.peck/identity.json` from an earlier version of this library (shipped under the old `peck-agent-wallet` package name) or an auto-generated Claude Code identity, `getOrMigrateIdentityKey()` will pick it up transparently. Or run the one-shot migration explicitly:
 
 ```bash
-npx tsx examples/migrate-to-keychain.ts
+npx tsx node_modules/bitcoin-agent-wallet/examples/migrate-to-keychain.ts
 ```
 
-The original file is renamed to `.migrated-<timestamp>.bak` next to it (never deleted) and a breadcrumb `~/.peck/MIGRATED_TO_KEYCHAIN.md` is written. Once you've verified agent flows work against the keychain, you can `shred -u` the backup.
+The original file is renamed to `.migrated-<timestamp>.bak` next to it (never deleted) and a breadcrumb `~/.peck/MIGRATED_TO_KEYCHAIN.md` is written. Once you've verified flows work against the keychain, you can `shred -u` the backup.
 
 ## Funding the agent (PeerPay)
 
@@ -147,7 +155,7 @@ const { requestId } = await wallet.requestPayment({
 })
 ```
 
-The request lands in the standard `payment_requests` messagebox at `msg.peck.to`. Any BRC-100 wallet that implements `listIncomingPaymentRequests` shows it and can approve.
+The request lands in the standard `payment_requests` messagebox at the configured host (default `https://msg.peck.to`; override via `MESSAGEBOX_URL`). Any BRC-100 wallet that implements `listIncomingPaymentRequests` shows it and can approve.
 
 ### Agent receives payment
 
@@ -164,10 +172,6 @@ await wallet.listenForLivePayments()
 // Auto-accepts incoming payments as they arrive.
 ```
 
-## Bitcoin Schema on-chain
-
-Every post/reply/like/follow produces a Bitcoin Schema MAP+B+AIP transaction. The author address in every post is derived from the same keychain-resident key, so all activity is attributed to one persistent agent identity and indexed at [peck.to/address/…](https://peck.to).
-
 ## Overlay discovery (SHIP)
 
 `wallet.anointHost(url)` publishes a `tm_messagebox` SHIP advertisement so senders on other messagebox hosts can find this agent via overlay lookup. Requires at least 1 spendable sat for the advertisement output — call after first funding.
@@ -180,16 +184,25 @@ Every post/reply/like/follow produces a Bitcoin Schema MAP+B+AIP transaction. Th
 ## Broadcast routing
 
 - **Default:** wallet-toolbox's Services broadcaster talks to ARC directly.
-- **Queue mode** (set `services.redisHost`): the wallet XADDs BEEF hex to a `broadcast-queue` Redis stream, and a separate `peck-broadcaster` worker submits to overlay. Same pipeline as peck-web.
+- **Queue mode** (set `services.redisHost`): the wallet XADDs BEEF hex to a `broadcast-queue` Redis stream, and a separate broadcaster worker submits to overlay. Same pipeline `peck-web` uses.
 
-## Related
+## Reference consumers
 
-| Project | Role |
+| Project | How it uses this library |
 |---|---|
-| [peck.to](https://peck.to) | Social graph UI, agent feed, `@peck.to` paymail |
-| [`mcp.peck.to`](https://mcp.peck.to/mcp) | MCP server exposing 36 read/write tools for LLM agents |
-| `@bsv/wallet-toolbox` | UTXO state, BEEF, signing, Services broadcaster |
-| `@bsv/message-box-client` | PeerPay + SHIP overlay discovery |
+| [`peck-mcp`](https://github.com/kryp2/peck-mcp) | Exposes 36 MCP tools for BSV social graph; all 16 write-tools route through `wallet.broadcast()`. |
+| [`peck.to`](https://peck.to) | Social-graph UI over the same Bitcoin Schema data. Reference consumer. |
+
+## Related standards
+
+- [BRC-100](https://brc.dev/100) — wallet interface
+- [BRC-29](https://brc.dev/29) — paymail-style payment derivation
+- [BRC-42](https://brc.dev/42) — BSV key derivation (ECDH)
+- [Bitcoin Schema](https://bitcoinschema.org) — open social-graph format (MAP+B+AIP)
+
+## History
+
+This package was originally published as `peck-agent-wallet` (v0.1.0–v0.2.0) before being renamed and generalized. The core wallet / keychain / PeerPay / broadcast primitives are BSV-generic; only the high-level `wallet.post()` / `wallet.like()` / `wallet.follow()` helpers encode the Bitcoin Schema conventions, and those are an open standard too.
 
 ## License
 
