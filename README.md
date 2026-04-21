@@ -67,6 +67,30 @@ await wallet.like(someTxid)
 await wallet.follow(someAddress)
 ```
 
+### Low-level: `wallet.broadcast()`
+
+For custom Bitcoin Schema scripts or any other `lockingScript` the high-level helpers don't cover (messages, tags, friend/unfriend, function_register/call, paymail-lookup-based payments, …), build the script yourself and call `broadcast()`:
+
+```typescript
+import { PROTO_B, PROTO_MAP, PROTO_AIP } from 'peck-agent-wallet'
+import { Script } from '@bsv/sdk'
+
+const script = buildMyScript(...)  // your Bitcoin Schema MAP+B+AIP builder
+
+const result = await wallet.broadcast({
+  description: 'peck message',
+  outputs: [
+    { lockingScript: script, satoshis: 0 },
+    // optional: payment output, additional data outputs, etc.
+    { lockingScript: p2pkhScript, satoshis: 1000, outputDescription: 'tip' },
+  ],
+  labels: ['peck', 'message'],
+})
+// → { txid, status, detail }
+```
+
+The wallet handles UTXO selection, ancestor BEEF assembly, signing, and broadcasting (ARC direct, or Redis → peck-broadcaster → overlay if `services.redisHost` is set). This is the primitive consumers like `peck-mcp` use to implement their full 16-write-tool surface without ever touching raw UTXOs.
+
 ## Identity storage (keychain)
 
 The agent's hex private key lives in the OS secret store via [keytar](https://www.npmjs.com/package/keytar):

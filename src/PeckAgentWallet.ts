@@ -14,7 +14,7 @@
  *
  * Se examples/funding-flow.md for full flyt (TODO).
  */
-import { PrivateKey, AtomicBEEF } from '@bsv/sdk'
+import { PrivateKey, AtomicBEEF, Script } from '@bsv/sdk'
 import { Setup, Chain } from '@bsv/wallet-toolbox'
 import type { SetupWallet } from '@bsv/wallet-toolbox'
 import { MessageBoxClient, PeerPayClient } from '@bsv/message-box-client'
@@ -282,16 +282,49 @@ export class PeckAgentWallet {
     return this.broadcastScript(script.toHex(), 'peck follow')
   }
 
-  private async broadcastScript(scriptHex: string, description: string): Promise<BroadcastResult> {
+  /**
+   * Lav-nivå public: broadcast arbitrary outputs through wallet-toolbox.
+   *
+   * All UTXO-valg, ancestor BEEF-assembly, signing og broadcast til ARC
+   * (eller Redis → peck-broadcaster → overlay hvis services.redisHost er
+   * satt) skjer via `@bsv/wallet-toolbox` createAction. Caller leverer
+   * bare outputs og en description.
+   *
+   * Typisk bruk: appen bygger et Bitcoin Schema MAP+B+AIP script (eller
+   * noe annet lockingScript) og lar peck-agent-wallet håndtere resten:
+   *
+   * ```ts
+   * const script = buildMessageScript({channel, content, ...})
+   * const result = await wallet.broadcast({
+   *   description: 'peck message',
+   *   outputs: [{ lockingScript: script.toHex(), satoshis: 0 }],
+   * })
+   * ```
+   *
+   * Denne primitiven gjør at høy-nivå apper (peck-mcp, scripts, daemons)
+   * kan bruke peck-agent-wallet som eneste wallet-backend uten å bygge
+   * eget UTXO-management eller egen broadcast-path.
+   */
+  async broadcast(args: {
+    description: string
+    outputs: Array<{
+      lockingScript: Script | string
+      satoshis?: number
+      outputDescription?: string
+    }>
+    labels?: string[]
+  }): Promise<BroadcastResult> {
     this.ensureInit()
     const wallet = this.setup!.wallet
+    const normalizedOutputs = args.outputs.map(o => ({
+      lockingScript: typeof o.lockingScript === 'string' ? o.lockingScript : o.lockingScript.toHex(),
+      satoshis: o.satoshis ?? 0,
+      outputDescription: o.outputDescription ?? args.description,
+    }))
     const result = await wallet.createAction({
-      description,
-      outputs: [{
-        lockingScript: scriptHex,
-        satoshis: 0,
-        outputDescription: description,
-      }],
+      description: args.description,
+      outputs: normalizedOutputs,
+      labels: args.labels,
       options: { randomizeOutputs: false, acceptDelayedBroadcast: false },
     })
     if (!result.txid) {
@@ -306,6 +339,14 @@ export class PeckAgentWallet {
       return { txid, status: 'queued', detail: `enqueued to ${stream}` }
     }
     return { txid, status: 'submitted', detail: 'wallet-toolbox ARC' }
+  }
+
+  /** Kortere helper for single-script broadcasts med 0 sat output. */
+  private async broadcastScript(scriptHex: string, description: string): Promise<BroadcastResult> {
+    return this.broadcast({
+      description,
+      outputs: [{ lockingScript: scriptHex, satoshis: 0 }],
+    })
   }
 
   private ensureInit(): void {

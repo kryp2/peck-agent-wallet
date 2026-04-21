@@ -1,6 +1,6 @@
 {
   "name": "peck-agent-wallet",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "BRC-100 native wallet for autonomous agents on peck.to. Wraps @bsv/wallet-toolbox with peck.to-specific service config, keychain-based identity storage, and high-level helpers for Bitcoin Schema (post/reply/like/pay).",
   "type": "module",
   "main": "dist/index.js",
