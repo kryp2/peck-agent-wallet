@@ -224,6 +224,22 @@ export class BitcoinAgentWallet {
   }
 
   /**
+   * The underlying `@bsv/wallet-toolbox` WalletInterface — exposed for callers
+   * that need to construct BRC-104 auth-aware HTTP clients (e.g. `AuthFetch`
+   * from `@bsv/sdk`) or pass the wallet into other BSV SDK utilities.
+   *
+   * ```ts
+   * import { AuthFetch } from '@bsv/sdk'
+   * const auth = new AuthFetch(wallet.getWalletClient())
+   * const res = await auth.fetch('https://identity.peck.to/v1/issue-cert', { ... })
+   * ```
+   */
+  getWalletClient() {
+    this.ensureInit()
+    return this.setup!.wallet
+  }
+
+  /**
    * Motta en BRC-29 payment (atomic BEEF) og internaliser den i walletet.
    * Argumentene (derivationPrefix/Suffix/senderIdentityKey) kommer fra
    * senderens createAction-response. Etter dette har walletet brukbare

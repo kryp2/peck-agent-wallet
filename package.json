@@ -1,6 +1,6 @@
 {
   "name": "bitcoin-agent-wallet",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "BRC-100 native wallet primitive for autonomous agents on BSV. Wraps @bsv/wallet-toolbox with OS-keychain identity storage, standard PeerPay funding via @bsv/message-box-client, and a broadcast() primitive for arbitrary Bitcoin Schema / locking scripts.",
   "type": "module",
   "main": "dist/index.js",
